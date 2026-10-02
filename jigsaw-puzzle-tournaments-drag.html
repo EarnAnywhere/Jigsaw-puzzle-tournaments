@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jigsaw Puzzle Tournaments — UGXGIG</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  :root{
+    --ink:#1A1D15; --paper:#F5F6EE; --paper-raised:#FFFFFF; --line:#D6D9C8;
+    --yellow:#FFC928; --green:#2F7D4F; --green-soft:#E4F0E7; --red:#B23A2E; --red-soft:#F7E7E4;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:'IBM Plex Sans',sans-serif;
+       padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+       -webkit-font-smoothing:antialiased;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif; margin:0;}
+  .wrap{max-width:480px; margin:0 auto; padding:18px;}
+  .top{background:var(--ink); color:var(--paper); padding:14px 18px;}
+  .top b{color:var(--yellow);}
+  .card{background:var(--paper-raised); border:1.5px solid var(--ink); border-radius:12px; padding:20px; margin-bottom:16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#4A4E3F;}
+  .field input{width:100%; font-size:17px; padding:12px; border:1.5px solid var(--line); border-radius:6px; font-family:inherit;}
+  .btn{display:block; width:100%; text-align:center; font-weight:600; font-size:15px; padding:14px;
+       border-radius:8px; border:2px solid var(--ink); background:var(--yellow); color:var(--ink);
+       cursor:pointer; text-decoration:none;}
+  .btn.ghost{background:transparent;}
+  .btn.green{background:var(--green); border-color:var(--green); color:#fff;}
+  .hint{font-size:13px; color:#4A4E3F; margin-top:8px;}
+  .hidden{display:none;}
+  .code{font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:700; letter-spacing:4px; text-align:center;}
+
+  .scoreboard{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px;}
+  .pill{border-radius:30px; padding:9px 14px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; text-align:center;}
+  .pill.me{background:var(--ink); color:var(--paper); flex:1;}
+  .pill.opp{background:#eee; color:var(--ink); flex:1;}
+  .pill.timer{background:var(--red-soft); color:var(--red);}
+
+  .puzzle{ position:relative; margin:0 auto; touch-action:none; max-width:100%; }
+  .board{ position:absolute; left:0; top:0; background:#E4E7D6; border:3px solid var(--ink); border-radius:6px; box-sizing:content-box; margin:-3px; }
+  .ghost{ position:absolute; inset:0; opacity:.18; }
+  .piece{ position:absolute; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.35), 0 1px 4px rgba(0,0,0,.4); }
+  .piece.locked{ cursor:default; box-shadow:none; }
+
+  .result{text-align:center; padding:10px 0;}
+  .result .big{font-family:'Space Grotesk',sans-serif; font-size:40px; font-weight:700; margin:10px 0;}
+</style>
+</head>
+<body>
+
+<div class="top"><b>UGX</b>GIG — Jigsaw Puzzle Tournaments</div>
+
+<div class="wrap">
+
+  <!-- SCREEN: LOBBY -->
+  <div id="screen-lobby">
+    <div class="card">
+      <h2 style="margin-bottom:4px;">Jigsaw Puzzle Tournaments</h2>
+      <p class="hint">25 pieces, same picture and shuffle on both phones. Drag each piece to its spot. First to finish wins.</p>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label for="playerName">Your name</label>
+        <input type="text" id="playerName" placeholder="Enter your name">
+      </div>
+      <button class="btn" id="createBtn">Create new match</button>
+      <p class="hint" style="text-align:center;">— or —</p>
+      <div class="field">
+        <label for="joinCode">Match code</label>
+        <input type="text" id="joinCode" placeholder="e.g. 4821" inputmode="numeric" maxlength="4">
+      </div>
+      <button class="btn ghost" id="joinBtn">Join match</button>
+      <p id="lobbyError" class="hint" style="color:var(--red);"></p>
+    </div>
+  </div>
+
+  <!-- SCREEN: SHARE CODE -->
+  <div id="screen-share" class="hidden">
+    <div class="card" style="text-align:center;">
+      <p class="hint">Share this code with your opponent in the group:</p>
+      <div class="code" id="shareCode"></div>
+      <p class="hint">Waiting for them to join…</p>
+    </div>
+  </div>
+
+  <!-- SCREEN: PLAY -->
+  <div id="screen-play" class="hidden">
+    <div class="scoreboard">
+      <div class="pill me" id="myStatus">You: solving</div>
+      <div class="pill timer" id="timerDisplay">0:00</div>
+      <div class="pill opp" id="oppStatus">Opp: solving</div>
+    </div>
+    <div class="puzzle" id="puzzle"></div>
+    <p class="hint" style="text-align:center;">Drag each piece onto its spot in the frame.</p>
+  </div>
+
+  <!-- SCREEN: RESULT -->
+  <div id="screen-result" class="hidden">
+    <div class="card result">
+      <h2 id="resultTitle"></h2>
+      <div class="big" id="finalTimeLine"></div>
+      <a href="#" class="btn green" id="submitHistoryBtn" target="_blank">Submit to Game History</a>
+      <p class="hint">Then confirm in the WhatsApp group so the win can be verified and paid out.</p>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBEePsSdUMz0X5oGNM81TE3xKbwAas9L_Q",
+  authDomain: "ugxgig-games.firebaseapp.com",
+  databaseURL: "https://ugxgig-games-default-rtdb.firebaseio.com/",
+  projectId: "ugxgig-games",
+  storageBucket: "ugxgig-games.firebasestorage.app",
+  messagingSenderId: "341111144918",
+  appId: "1:341111144918:web:3b49eca252e90449132477",
+  measurementId: "G-PS5JKTS763"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const GAME_HISTORY_FORM_URL = "PASTE_GOOGLE_FORM_PREFILLED_LINK_HERE";
+const COLS = 5, ROWS = 5, TOTAL = COLS * ROWS;
+
+let roomCode = null, myRole = null, oppRole = null, myName = "";
+let roomRef = null;
+let order = [];        // order[slotIndex] = pieceId currently sitting there
+let selectedSlot = null;
+let pieceEls = [];
+let startedAt = null;
+let timerInterval = null;
+let finished = false;
+
+function show(id) {
+  ["screen-lobby","screen-share","screen-play","screen-result"]
+    .forEach(s => document.getElementById(s).classList.toggle("hidden", s !== id));
+}
+function randomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+function showLobbyError(msg) { document.getElementById("lobbyError").textContent = msg; }
+
+function shuffledOrder() {
+  const arr = Array.from({length: TOTAL}, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  // guarantee it's not already solved
+  if (arr.every((v, i) => v === i)) { [arr[0], arr[1]] = [arr[1], arr[0]]; }
+  return arr;
+}
+
+// ---- Lobby ----
+document.getElementById("createBtn").addEventListener("click", () => {
+  myName = document.getElementById("playerName").value.trim();
+  if (!myName) return showLobbyError("Enter your name first");
+
+  roomCode = randomCode();
+  myRole = "p1"; oppRole = "p2";
+  roomRef = db.ref("rooms_jigsaw/" + roomCode);
+  const pieceOrder = shuffledOrder();
+  roomRef.set({
+    status: "lobby",
+    createdAt: Date.now(),
+    pieceOrder,
+    players: { p1: { name: myName, done: false } }
+  }).then(() => {
+    document.getElementById("shareCode").textContent = roomCode;
+    show("screen-share");
+    roomRef.child("players/p2").on("value", snap => {
+      if (snap.exists()) {
+        roomRef.update({ status: "playing", startedAt: firebase.database.ServerValue.TIMESTAMP });
+      }
+    });
+    roomRef.child("status").on("value", snap => {
+      if (snap.val() === "playing") beginPlay(pieceOrder);
+    });
+  });
+});
+
+document.getElementById("joinBtn").addEventListener("click", () => {
+  myName = document.getElementById("playerName").value.trim();
+  const code = document.getElementById("joinCode").value.trim();
+  if (!myName) return showLobbyError("Enter your name first");
+  if (!/^\d{4}$/.test(code)) return showLobbyError("Enter the 4-digit match code");
+
+  roomCode = code;
+  roomRef = db.ref("rooms_jigsaw/" + roomCode);
+  roomRef.once("value").then(snap => {
+    if (!snap.exists()) return showLobbyError("No match found with that code");
+    const data = snap.val();
+    if (data.players.p2) return showLobbyError("That match is already full");
+
+    myRole = "p2"; oppRole = "p1";
+    roomRef.child("players/p2").set({ name: myName, done: false }).then(() => {
+      roomRef.child("status").on("value", snap2 => {
+        if (snap2.val() === "playing") {
+          roomRef.child("pieceOrder").once("value").then(osnap => beginPlay(osnap.val()));
+        }
+      });
+    });
+  });
+});
+
+// ---- Build board (drag and snap) ----
+let pw = 0, placedCount = 0, zTop = 10;
+
+function seededRandom(seed) {
+  let s = (Number(seed) || 1) % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return () => (s = s * 16807 % 2147483647) / 2147483647;
+}
+
+// Same picture on both phones: it is drawn from the match code
+function drawPicture(w, h, seed) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  const rnd = seededRandom(seed);
+  const sky = g.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, "#1b2a6b"); sky.addColorStop(0.6, "#e8638c"); sky.addColorStop(1, "#ffb347");
+  g.fillStyle = sky; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 50; i++) { g.fillStyle = "rgba(255,255,255,.8)"; g.fillRect(rnd() * w, rnd() * h * 0.5, 2, 2); }
+  g.fillStyle = "#fff3b0"; g.beginPath(); g.arc(w * 0.7, h * 0.45, h * 0.16, 0, 7); g.fill();
+  ["#5b2a86", "#3a1c71", "#1d1135"].forEach((col, k) => {
+    g.fillStyle = col; g.beginPath(); g.moveTo(0, h);
+    for (let x = 0; x <= w; x += w / 10) g.lineTo(x, h - h * (0.18 + k * 0.1) - rnd() * h * 0.2);
+    g.lineTo(w, h); g.fill();
+  });
+  for (let i = 0; i < 25; i++) {
+    g.fillStyle = "hsla(" + (rnd() * 360) + ",80%,60%,.55)";
+    g.beginPath(); g.arc(rnd() * w, rnd() * h, h * (0.02 + rnd() * 0.05), 0, 7); g.fill();
+  }
+  return c.toDataURL("image/png");
+}
+
+function buildPuzzle(pieceOrder) {
+  order = pieceOrder.slice();
+  const puzzle = document.getElementById("puzzle");
+  puzzle.innerHTML = "";
+  pieceEls = [];
+  placedCount = 0;
+  zTop = 10;
+
+  const avail = Math.min(window.innerWidth - 36, 444);
+  pw = Math.floor(avail / COLS);
+  const bw = pw * COLS, bh = pw * ROWS, trayH = Math.round(pw * 2.4);
+  puzzle.style.width = bw + "px";
+  puzzle.style.height = (bh + 12 + trayH) + "px";
+
+  const img = drawPicture(bw, bh, roomCode);
+  const board = document.createElement("div");
+  board.className = "board";
+  board.style.width = bw + "px"; board.style.height = bh + "px";
+  const ghost = document.createElement("div");
+  ghost.className = "ghost";
+  ghost.style.background = "url(" + img + ")";
+  board.appendChild(ghost);
+  puzzle.appendChild(board);
+
+  // Start positions come from the shared shuffle + match code, so both phones start identically
+  const rnd = seededRandom(roomCode);
+  order.forEach((pieceId, k) => {
+    const el = document.createElement("div");
+    el.className = "piece";
+    el.dataset.id = pieceId;
+    el.style.width = el.style.height = pw + "px";
+    el.style.backgroundImage = "url(" + img + ")";
+    el.style.backgroundSize = bw + "px " + bh + "px";
+    positionPiece(el, pieceId);
+    el.style.left = (rnd() * (bw - pw)) + "px";
+    el.style.top = (bh + 12 + rnd() * (trayH - pw)) + "px";
+    el.style.zIndex = 2 + k;
+    attachDrag(el, puzzle, pieceId, bw);
+    puzzle.appendChild(el);
+    pieceEls.push(el);
+  });
+}
+
+function positionPiece(el, pieceId) {
+  const col = pieceId % COLS, row = Math.floor(pieceId / COLS);
+  el.style.backgroundPosition = `-${col * pw}px -${row * pw}px`;
+}
+
+function attachDrag(el, puzzle, pieceId, bw) {
+  let drag = null;
+  el.addEventListener("pointerdown", e => {
+    if (finished || el.classList.contains("locked")) return;
+    el.setPointerCapture(e.pointerId);
+    const r = el.getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    el.style.zIndex = ++zTop + 1000;
+  });
+  el.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const s = puzzle.getBoundingClientRect();
+    el.style.left = Math.max(0, Math.min(e.clientX - s.left - drag.dx, bw - pw)) + "px";
+    el.style.top = Math.max(0, Math.min(e.clientY - s.top - drag.dy, puzzle.offsetHeight - pw)) + "px";
+  });
+  const end = () => {
+    if (!drag) return;
+    drag = null;
+    const tx = (pieceId % COLS) * pw, ty = Math.floor(pieceId / COLS) * pw;
+    const x = parseFloat(el.style.left), y = parseFloat(el.style.top);
+    if (Math.hypot(x - tx, y - ty) < pw * 0.4) {
+      el.style.left = tx + "px"; el.style.top = ty + "px";
+      el.classList.add("locked"); el.style.zIndex = 1;
+      placedCount++;
+      if (placedCount === TOTAL) onSolved();
+    } else {
+      el.style.zIndex = ++zTop;
+    }
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+}
+
+// ---- Play lifecycle ----
+function beginPlay(pieceOrder) {
+  roomRef.child("status").off();
+  show("screen-play");
+  buildPuzzle(pieceOrder);
+
+  roomRef.child("startedAt").once("value").then(snap => {
+    startedAt = snap.val() || Date.now();
+    timerInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - startedAt) / 1000);
+      const m = Math.floor(secs / 60), s = secs % 60;
+      document.getElementById("timerDisplay").textContent = `${m}:${String(s).padStart(2,"0")}`;
+    }, 500);
+  });
+
+  roomRef.child("players").on("value", snap => {
+    const players = snap.val();
+    if (!players) return;
+    const me = players[myRole], opp = players[oppRole];
+    if (me) document.getElementById("myStatus").textContent = `You: ${me.done ? "done ✓" : "solving"}`;
+    if (opp) document.getElementById("oppStatus").textContent = `Opp: ${opp.done ? "done ✓" : "solving"}`;
+  });
+
+  roomRef.child("status").on("value", snap => {
+    if (snap.val() === "done") finishRoom();
+  });
+}
+
+function onSolved() {
+  if (finished) return;
+  finished = true;
+  const myTime = Date.now() - startedAt;
+
+  roomRef.child("players/" + myRole).update({ done: true, finishMs: myTime });
+
+  roomRef.child("status").once("value").then(snap => {
+    if (snap.val() !== "done") {
+      roomRef.update({ status: "done", winner: myRole, winnerTimeMs: myTime });
+    }
+  });
+}
+
+function finishRoom() {
+  clearInterval(timerInterval);
+  roomRef.child("players").off();
+  roomRef.child("status").off();
+
+  roomRef.once("value").then(snap => {
+    const data = snap.val();
+    const iWon = data.winner === myRole;
+
+    show("screen-result");
+    const title = document.getElementById("resultTitle");
+    title.textContent = iWon ? "🎉 You finished first!" : "They finished first";
+    title.style.color = iWon ? "var(--green)" : "var(--red)";
+
+    const secs = Math.floor((data.winnerTimeMs || 0) / 1000);
+    document.getElementById("finalTimeLine").textContent = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,"0")}`;
+
+    const link = GAME_HISTORY_FORM_URL
+      .replace("REPLACE_NAME", encodeURIComponent(myName))
+      .replace("REPLACE_RESULT", encodeURIComponent(iWon ? "Won" : "Lost"));
+    document.getElementById("submitHistoryBtn").href = link;
+  });
+}
+</script>
+
+</body>
+</html>
